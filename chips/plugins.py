@@ -155,7 +155,8 @@ class TaskManager(SimplePlugin):
         :param args: Аргументы, с котрыми будет вызываться callable задачи
         :param kwargs: Имнованные аргументы, с котрыми будет вызываться callable задачи
         '''
-        timer = threading.Timer(interval, self._run_task, [code, interval] + list(args), kwargs or {})
+        timer = threading.Timer(interval, self._run_task, [
+                                code, interval] + list(args), kwargs or {})
         self._tasks[code] = [task, timer]
         if self.started:
             timer.start()
@@ -223,6 +224,7 @@ class StarterStopper(SimplePlugin):
                         task), logging.ERROR, traceback=True)
             self.bus.log('Starter succesfully worked')
         else:
-            self.bus.log('Wrong bus state, starter tasks are ignored', logging.WARNING)
+            self.bus.log(
+                'Wrong bus state, starter tasks are ignored', logging.WARNING)
 
         self.bus.publish('release_thread')

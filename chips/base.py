@@ -23,12 +23,12 @@ def daemonize(user, group, pidfile=None):
             raise
         cherrypy.drop_privileges = DropPrivileges(
             cherrypy.engine, uid=uid, gid=gid).subscribe()
-    
+
     from cherrypy.process.plugins import PIDFile, Daemonizer
     if pidfile:
         PIDFile(cherrypy.engine, pidfile).subscribe()
     Daemonizer(cherrypy.engine).subscribe()
-    
+
 
 class _Stub:
     pass
@@ -84,6 +84,5 @@ class AppTree:
             self.root = handler
         else:
             setattr(self._find_owner(path_list[0:-1]), path_list[-1], handler)
-        cherrypy.log.error('%s mounted on `%s`' % (type(handler).__name__, path), 'TREE')
-
-
+        cherrypy.log.error('%s mounted on `%s`' %
+                           (type(handler).__name__, path), 'TREE')
