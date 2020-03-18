@@ -18,9 +18,10 @@ class JsonRpcException(Exception):
         PARSE_ERROR: 'Parse Error',
         INVALID_REQUEST: 'Invalid Request',
         METHOD_NOT_FOUND: 'Method Not Found',
-        INVALID_PARAMS: 'Invalid Params',
+        INVALID_PARAMS: 'Invalid Parameters',
         INTERNAL_ERROR: 'Internal Error',
-        GENERIC_APPLICATION_ERROR: 'Application Error'
+        GENERIC_APPLICATION_ERROR: 'Application Error',
+        TIMEOUT: 'Timeout',
     }
 
     def __init__(self, rpc_id, code=None, message=None, data=None):
