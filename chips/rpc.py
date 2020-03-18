@@ -56,24 +56,21 @@ class RootController:
                 return None
         return result if getattr(result, '__rpc_exposed', False) else None
 
-    def _exec_single(self, req: jsonrpc.JsonRpcSingleRequest):
+    def _exec_single(self, req):
         '''
         Выполнение единичного метода в текущем потоке
         req - jsonrpc.JsonRpcSingleRequest или jsonrpc.JsonRpcException
-        vpath - list, содержащий URL по частям
-        params - GET-параметры запроса
-        Возвращает: либо jsonrpc.JsonRpcException, либо tuple(rpc_id, result), либо None для нотификаций
         '''
         if isinstance(req, jsonrpc.JsonRpcException):
             # Это ошибка парсинга запроса
             return req
 
-        cherrypy.log('call ({}) {}'.format(req.rpc_id, req.method),
+        cherrypy.log('call (id={}) "{}"'.format(req.rpc_id, req.method),
                      'RPC', severity=logging.DEBUG)
 
         method = self._find_method(req.method)
         if not method:
-            cherrypy.log('Method {} not found ({})'.format(req.method, req.rpc_id),
+            cherrypy.log('Method "{}" not found (id={})'.format(req.method, req.rpc_id),
                          'RPC', severity=logging.ERROR)
             if req.rpc_id:
                 return jsonrpc.JsonRpcException(req.rpc_id,
@@ -85,7 +82,7 @@ class RootController:
             try:
                 method(*req.args, **req.kwargs)
             except:
-                cherrypy.log('Error while calling notification handler {} ({})'.format(req.method, req.rpc_id),
+                cherrypy.log('Error while executing notification handler "{}" (id={})'.format(req.method, req.rpc_id),
                              'RPC', severity=logging.ERROR, traceback=True)
             return None
 
@@ -94,7 +91,7 @@ class RootController:
             res = method(*req.args, **req.kwargs)
             return res if req.rpc_id is not None else None
         except Exception as e:
-            cherrypy.log('Error while calling method handler {} ({})'.format(req.method, req.rpc_id),
+            cherrypy.log('Error while executing method handler "{}" (id={})'.format(req.method, req.rpc_id),
                          'RPC', severity=logging.ERROR, traceback=True)
             if isinstance(e, jsonrpc.JsonRpcException):
                 return e
@@ -106,9 +103,6 @@ class RootController:
     def _exec_batch(self, request: jsonrpc.JsonRpcBatchRequest):
         '''
         Выполнение батч-запроса
-        request - list [ tuple(rpc_id, method, args, kwargs), ... ]
-        vpath - list, содержащий URL по частям
-        params - GET-параметры запроса
         '''
         def wrapper(request):
             cherrypy.engine.publish('acquire_thread')
@@ -180,7 +174,7 @@ class RootController:
 
     @cherrypy.expose
     @cherrypy.tools.no_request_procesing()
-    def default(self, *vpath, **params):
+    def default(self, *_vpath, **_params):
         '''
         Обработчик по умолчанию
         '''
