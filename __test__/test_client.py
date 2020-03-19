@@ -4,6 +4,7 @@
 from jsonrpcclient.clients.http_client import HTTPClient
 from jsonrpcclient.requests import Request
 from jsonrpcclient.id_generators import random
+from jsonrpcclient.exceptions import ReceivedErrorResponseError
 import unittest
 
 
@@ -29,6 +30,13 @@ class JsonRpcTest(unittest.TestCase):
                                 id_generator=self.gen_id)
         self.assertEqual(r.data.result, 'Hello WORLD!')
 
+    def test_single_err(self):
+        with self.assertRaises(ReceivedErrorResponseError) as cm:
+            self.client.request('test.test_div', 10, 0,
+                                id_generator=self.gen_id)
+        exception = cm.exception
+        self.assertEqual(exception.args[0], 'division by zero')
+
     def test_batch(self):
         gen_id = iter(range(100))
         batch = (
@@ -36,6 +44,7 @@ class JsonRpcTest(unittest.TestCase):
             Request('vsub.test', arg1=10, arg2=9, id_generator=gen_id),
             Request('test.hello', 'WORLD', id_generator=gen_id),
             Request('nonexistent_method', id_generator=gen_id),
+            Request('test.test_div', 10, 0, id_generator=gen_id),
         )
         resp = self.client.send(batch)
         for r in resp.data:
@@ -48,6 +57,10 @@ class JsonRpcTest(unittest.TestCase):
             elif r.id == 3:
                 self.assertFalse(r.ok)
                 self.assertEqual(r.code, -32601)
+            elif r.id == 4:
+                self.assertFalse(r.ok)
+                self.assertEqual(r.code, -32000)
+                self.assertEqual(r.message, 'division by zero')
 
 
 if __name__ == '__main__':

@@ -42,7 +42,7 @@ cherrypy.tools.no_request_procesing = cherrypy.Tool(
 
 class RootController:
     '''
-    Базовый класс корневых контроллеров библиотек JSON-RPC 2.0
+    Базовый класс корневых контроллеров JSON-RPC 2.0
     '''
 
     def _find_method(self, name):
@@ -62,7 +62,8 @@ class RootController:
         req - jsonrpc.JsonRpcSingleRequest или jsonrpc.JsonRpcException
         '''
         if isinstance(req, jsonrpc.JsonRpcException):
-            # Это ошибка парсинга запроса
+            cherrypy.log('Could not parse JSON request',
+                         'RPC', severity=logging.ERROR)
             return req
 
         cherrypy.log('call (id={}) "{}"'.format(req.rpc_id, req.method),
@@ -97,8 +98,9 @@ class RootController:
                 return e
             else:
                 return jsonrpc.JsonRpcException(req.rpc_id,
+                                                message=str(e),
                                                 code=jsonrpc.JsonRpcException.GENERIC_APPLICATION_ERROR,
-                                                data=str(e))
+                                                data=repr(e))
 
     def _exec_batch(self, request: jsonrpc.JsonRpcBatchRequest):
         '''
@@ -117,8 +119,8 @@ class RootController:
         batch = []  # Запрос для исполнения в раздельных потоках
 
         if not _jsonrpc_conf.threaded_batch:
-            # Если отключена опция выполнения батча в разных
-            # потоках, то весь он будет исполнен в текущем последовательно
+            # Если отключена опция выполнения батча в разных потоках,
+            # то он весь будет исполнен в текущем последовательно
             single = request
         else:
             # Разбираем батч
@@ -158,11 +160,22 @@ class RootController:
                         break
                     time.sleep(0.1)
 
-                res = [(req.rpc_id, future.result()) for req, future in r]
-                for x in f:
+                # Собираем результаты
+                for req, future in r:
+                    if not req.rpc_id:
+                        # Это notification, результат не нужен
+                        continue
+                    fr = future.result()
+                    if isinstance(fr, jsonrpc.JsonRpcException):
+                        fr.rpc_id = req.rpc_id  # перезаписываем на всякий случай rpc_id
+                        res.append(fr)
+                    else:
+                        res.append((req.rpc_id, fr))
+
+                for req, _ in f:
                     # По всем зависшим запросам отдается таймаут
                     res.append(jsonrpc.JsonRpcException(
-                        x[0].rpc_id, code=jsonrpc.JsonRpcException.TIMEOUT))
+                        req.rpc_id, code=jsonrpc.JsonRpcException.TIMEOUT))
 
                 pool.shutdown(False)
 
