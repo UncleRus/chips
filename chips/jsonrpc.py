@@ -111,6 +111,8 @@ def parse_request(raw, encoding='utf-8'):
 
 
 def single_result(rpc_id, r):
+    if rpc_id is None:
+        return None
     if isinstance(r, JsonRpcException):
         return r.as_dict()
     return {
@@ -137,7 +139,7 @@ def batch_result(r):
             if not isinstance(item, (tuple, list, JsonRpcException)):
                 raise Exception('Invalid response item')
             if isinstance(item, JsonRpcException):
-                res.append(single_result(None, item))
+                res.append(single_result(item.rpc_id, item))
             else:
                 res.append(single_result(*item))
         return res

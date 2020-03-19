@@ -73,7 +73,7 @@ class RootController:
         if not method:
             cherrypy.log('Method "{}" not found (id={})'.format(req.method, req.rpc_id),
                          'RPC', severity=logging.ERROR)
-            if req.rpc_id:
+            if req.rpc_id is not None:
                 return jsonrpc.JsonRpcException(req.rpc_id,
                                                 code=jsonrpc.JsonRpcException.METHOD_NOT_FOUND)
             return None
@@ -152,7 +152,7 @@ class RootController:
                 stime = time.time()
                 etime = stime + _jsonrpc_conf.batch_timeout
                 while f:
-                    r[:] = filter(lambda x: x[1].done(), f)
+                    r.extend(filter(lambda x: x[1].done(), f))
                     f[:] = filter(lambda x: not x[1].done(), f)
                     if time.time() >= etime:
                         cherrypy.log('Timeout while batch-executing: %d threads still running' %
@@ -162,7 +162,7 @@ class RootController:
 
                 # Собираем результаты
                 for req, future in r:
-                    if not req.rpc_id:
+                    if req.rpc_id is None:
                         # Это notification, результат не нужен
                         continue
                     fr = future.result()
@@ -206,8 +206,9 @@ class RootController:
         response = cherrypy.response
         response.status = '200 OK'
         response.body = json.dumps(resp).encode(
-            _jsonrpc_conf.encoding) if resp is not None else ''
-        response.headers['Content-Type'] = 'text/json; charset=%s' % _jsonrpc_conf.encoding
-        response.headers['Content-Length'] = len(response.body)
+            _jsonrpc_conf.encoding) if resp is not None else b''
+        if resp:
+            response.headers['Content-Type'] = 'text/json; charset=%s' % _jsonrpc_conf.encoding
+            response.headers['Content-Length'] = len(response.body)
 
         return cherrypy.serving.response.body

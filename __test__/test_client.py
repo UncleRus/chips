@@ -30,6 +30,10 @@ class JsonRpcTest(unittest.TestCase):
                                 id_generator=self.gen_id)
         self.assertEqual(r.data.result, 'Hello WORLD!')
 
+    def test_single_notification(self):
+        r = self.client.notify('test.hello', who='WORLD')
+        print(r.text)
+
     def test_single_err(self):
         with self.assertRaises(ReceivedErrorResponseError) as cm:
             self.client.request('test.test_div', 10, 0,
@@ -47,6 +51,7 @@ class JsonRpcTest(unittest.TestCase):
             Request('test.test_div', 10, 0, id_generator=gen_id),
         )
         resp = self.client.send(batch)
+        self.assertEqual(len(resp.data), 5)
         for r in resp.data:
             if r.id == 0:
                 self.assertEqual(r.result, 15)
