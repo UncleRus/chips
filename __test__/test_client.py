@@ -32,7 +32,7 @@ class JsonRpcTest(unittest.TestCase):
 
     def test_single_notification(self):
         r = self.client.notify('test.hello', who='WORLD')
-        print(r.text)
+        self.assertEqual(r.text, '')
 
     def test_single_err(self):
         with self.assertRaises(ReceivedErrorResponseError) as cm:

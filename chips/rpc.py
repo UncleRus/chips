@@ -158,7 +158,8 @@ class RootController:
                         cherrypy.log('Timeout while batch-executing: %d threads still running' %
                                      len(f), 'RPC', severity=logging.ERROR)
                         break
-                    time.sleep(0.1)
+                    if f:
+                        time.sleep(0.1)
 
                 # Собираем результаты
                 for req, future in r:
@@ -205,10 +206,11 @@ class RootController:
 
         response = cherrypy.response
         response.status = '200 OK'
-        response.body = json.dumps(resp).encode(
-            _jsonrpc_conf.encoding) if resp is not None else b''
-        if resp:
+        if resp is not None:
+            response.body = json.dumps(resp).encode(_jsonrpc_conf.encoding)
             response.headers['Content-Type'] = 'text/json; charset=%s' % _jsonrpc_conf.encoding
             response.headers['Content-Length'] = len(response.body)
+        else:
+            response.body = b''
 
-        return cherrypy.serving.response.body
+        return response.body
