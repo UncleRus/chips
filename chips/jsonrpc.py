@@ -3,7 +3,7 @@
 import json
 
 
-class JsonRpcException(Exception):
+class Error(Exception):
 
     USER_ERROR = -32100
     PARSE_ERROR = -32700
@@ -47,31 +47,31 @@ class JsonRpcException(Exception):
         return json.dumps(self.as_dict())
 
     def __repr__(self):
-        return 'JsonRpcException<id=%r, code=%r, message=%r>' % (self.rpc_id, self.code, self.message)
+        return 'Error<id=%r, code=%r, message=%r>' % (self.rpc_id, self.code, self.message)
 
 
-class JsonRpcSingleRequest:
+class SingleRequest:
 
     def __init__(self, data):
         if not isinstance(data, dict):
-            raise JsonRpcException(None, code=JsonRpcException.INVALID_REQUEST)
+            raise Error(None, code=Error.INVALID_REQUEST)
         self.data = data
 
         self.rpc_id = self.data.get('id')
 
         if self.data.get('jsonrpc') != '2.0':
-            raise JsonRpcException(
-                self.rpc_id, code=JsonRpcException.INVALID_REQUEST)
+            raise Error(
+                self.rpc_id, code=Error.INVALID_REQUEST)
 
         self.method = self.data.get('method')
         if not isinstance(self.method, str) or not self.method:
-            raise JsonRpcException(
-                self.rpc_id, code=JsonRpcException.INVALID_REQUEST)
+            raise Error(
+                self.rpc_id, code=Error.INVALID_REQUEST)
 
         self.params = self.data.get('params', [])
         if not isinstance(self.params, (list, dict)):
-            raise JsonRpcException(
-                self.rpc_id, code=JsonRpcException.INVALID_PARAMS)
+            raise Error(
+                self.rpc_id, code=Error.INVALID_PARAMS)
 
         if isinstance(self.params, list):
             self.args = self.params
@@ -81,18 +81,18 @@ class JsonRpcSingleRequest:
             self.kwargs = self.params
 
 
-class JsonRpcBatchRequest:
+class BatchRequest:
 
     def __init__(self, data):
         if not isinstance(data, list):
-            raise JsonRpcException(None, code=JsonRpcException.INVALID_REQUEST)
+            raise Error(None, code=Error.INVALID_REQUEST)
         self.data = data
 
         self.requests = []
         for req in self.data:
             try:
-                self.requests.append(JsonRpcSingleRequest(req))
-            except JsonRpcException as e:
+                self.requests.append(SingleRequest(req))
+            except Error as e:
                 self.requests.append(e)
 
 
@@ -103,17 +103,17 @@ def parse_request(raw, encoding='utf-8'):
         else:
             data = json.load(raw)
     except Exception as e:
-        return JsonRpcException(None, code=JsonRpcException.INVALID_REQUEST, data=str(e))
+        return Error(None, code=Error.INVALID_REQUEST, data=str(e))
     if isinstance(data, list):
-        return JsonRpcBatchRequest(data)
+        return BatchRequest(data)
     else:
-        return JsonRpcSingleRequest(data)
+        return SingleRequest(data)
 
 
 def single_result(rpc_id, r):
     if rpc_id is None:
         return None
-    if isinstance(r, JsonRpcException):
+    if isinstance(r, Error):
         return r.as_dict()
     return {
         'jsonrpc': '2.0',
@@ -124,24 +124,24 @@ def single_result(rpc_id, r):
 
 def batch_result(r):
     '''
-    r -> [(<rpc_id>, <result>) | JsonRpcException(), ...]
+    r -> [(<rpc_id>, <result>) | Error(), ...]
     e.g.
-    [(1, 10000), JsonRpcException(2, code=GENERIC_APPLICATION_ERROR), (3, ['some', 'result']), ...]
+    [(1, 10000), Error(2, code=GENERIC_APPLICATION_ERROR), (3, ['some', 'result']), ...]
     '''
     if not isinstance(r, (list, tuple)):
-        return JsonRpcException(None, code=JsonRpcException.INTERNAL_ERROR, data='Invalid response').as_dict()
+        return Error(None, code=Error.INTERNAL_ERROR, data='Invalid response').as_dict()
 
     res = []
     try:
         for item in r:
             if item is None:
                 continue
-            if not isinstance(item, (tuple, list, JsonRpcException)):
+            if not isinstance(item, (tuple, list, Error)):
                 raise Exception('Invalid response item')
-            if isinstance(item, JsonRpcException):
+            if isinstance(item, Error):
                 res.append(single_result(item.rpc_id, item))
             else:
                 res.append(single_result(*item))
         return res
     except Exception as e:
-        return JsonRpcException(None, code=JsonRpcException.INTERNAL_ERROR, data=str(e)).as_dict()
+        return Error(None, code=Error.INTERNAL_ERROR, data=str(e)).as_dict()

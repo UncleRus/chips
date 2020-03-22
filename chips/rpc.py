@@ -5,6 +5,7 @@ import logging
 import concurrent.futures
 import time
 import cherrypy
+import typing
 
 from . import config
 from . import jsonrpc
@@ -56,12 +57,12 @@ class RootController:
                 return None
         return result if getattr(result, '__rpc_exposed', False) else None
 
-    def _exec_single(self, req):
+    def _exec_single(self, req: typing.Union[jsonrpc.SingleRequest, jsonrpc.Error]):
         '''
         Выполнение единичного метода в текущем потоке
-        req - jsonrpc.JsonRpcSingleRequest или jsonrpc.JsonRpcException
+        req - jsonrpc.SingleRequest или jsonrpc.Error
         '''
-        if isinstance(req, jsonrpc.JsonRpcException):
+        if isinstance(req, jsonrpc.Error):
             cherrypy.log('Could not parse JSON request',
                          'RPC', severity=logging.ERROR)
             return req
@@ -74,8 +75,8 @@ class RootController:
             cherrypy.log('Method "{}" not found (id={})'.format(req.method, req.rpc_id),
                          'RPC', severity=logging.ERROR)
             if req.rpc_id is not None:
-                return jsonrpc.JsonRpcException(req.rpc_id,
-                                                code=jsonrpc.JsonRpcException.METHOD_NOT_FOUND)
+                return jsonrpc.Error(req.rpc_id,
+                                     code=jsonrpc.Error.METHOD_NOT_FOUND)
             return None
 
         if req.rpc_id is None:
@@ -94,15 +95,15 @@ class RootController:
         except Exception as e:
             cherrypy.log('Error while executing method handler "{}" (id={})'.format(req.method, req.rpc_id),
                          'RPC', severity=logging.ERROR, traceback=True)
-            if isinstance(e, jsonrpc.JsonRpcException):
+            if isinstance(e, jsonrpc.Error):
                 return e
             else:
-                return jsonrpc.JsonRpcException(req.rpc_id,
-                                                message=str(e),
-                                                code=jsonrpc.JsonRpcException.GENERIC_APPLICATION_ERROR,
-                                                data=repr(e))
+                return jsonrpc.Error(req.rpc_id,
+                                     message=str(e),
+                                     code=jsonrpc.Error.GENERIC_APPLICATION_ERROR,
+                                     data=repr(e))
 
-    def _exec_batch(self, request: jsonrpc.JsonRpcBatchRequest):
+    def _exec_batch(self, request: jsonrpc.BatchRequest):
         '''
         Выполнение батч-запроса
         '''
@@ -125,7 +126,7 @@ class RootController:
         else:
             # Разбираем батч
             for r in request.requests:
-                if isinstance(r, jsonrpc.JsonRpcException):
+                if isinstance(r, jsonrpc.Error):
                     # Это ошибка парсинга, отправляем ее в результат напрямую
                     res.append(r)
                     continue
@@ -167,7 +168,7 @@ class RootController:
                         # Это notification, результат не нужен
                         continue
                     fr = future.result()
-                    if isinstance(fr, jsonrpc.JsonRpcException):
+                    if isinstance(fr, jsonrpc.Error):
                         fr.rpc_id = req.rpc_id  # перезаписываем на всякий случай rpc_id
                         res.append(fr)
                     else:
@@ -175,8 +176,8 @@ class RootController:
 
                 for req, _ in f:
                     # По всем зависшим запросам отдается таймаут
-                    res.append(jsonrpc.JsonRpcException(
-                        req.rpc_id, code=jsonrpc.JsonRpcException.TIMEOUT))
+                    res.append(jsonrpc.Error(
+                        req.rpc_id, code=jsonrpc.Error.TIMEOUT))
 
                 pool.shutdown(False)
 
@@ -196,8 +197,8 @@ class RootController:
         req = jsonrpc.parse_request(
             cherrypy.request.body.fp, _jsonrpc_conf.encoding)
 
-        if isinstance(req, jsonrpc.JsonRpcBatchRequest):
-            # Ставим на выполнение в плагин пачку и ждем, пока они не выполнятся
+        if isinstance(req, jsonrpc.BatchRequest):
+            # Ставим на выполнение пачку и ждем, пока они не выполнятся
             resp = jsonrpc.batch_result(self._exec_batch(req))
         else:
             # В основном потоке выполняем метод
